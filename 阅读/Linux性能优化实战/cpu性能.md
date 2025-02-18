@@ -38,6 +38,11 @@ Average:      UID       PID    %usr %system  %guest   %wait    %CPU   CPU  Comma
 Average:        0     45491   41.94    0.00    0.00   57.09   41.94     -  stress
 ```
 
+> 思考
+>> 1. 负载高不一定cpu使用率高，比如在io密集型任务中，CPU使用率低，但是iowait和负载都高
+>> 2. 进程等待cpu可以通过pidstat -u 5 1的%wait来查询, top看不出来 
+
+
 ## 上下文切换
 就是上一个任务的CPU上下文（寄存器和程序计数器）保存，然后加载新任务的上下文的寄存器和程序计数器的过程
 
