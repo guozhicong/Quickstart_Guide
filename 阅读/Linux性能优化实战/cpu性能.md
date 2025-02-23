@@ -1,7 +1,6 @@
 ## 遗留问题
 - TLB和页表的关系？
 - perf record 和 perf report的使用 (加不加-g参数的差异) : 如何查看调用关系
-- 
 
 ## uptime 平均负载解释
 
@@ -53,9 +52,10 @@ Average:        0     45491   41.94    0.00    0.00   57.09   41.94     -  stres
 ### 查询上下文切换相关命令
 ```shell
 [root@hostname-zb9ta ~]# vmstat -w 5
-# cs (context switch) 上下文切换次数
+# cs (context switch) 每秒上下文切换次数
 # in 每秒中断次数
 # r （正在运行的和等待CPU的进程数）
+# b 不可中断睡眠的进程数
 
 # 使用了stress -c 200
 --procs-- -----------------------memory---------------------- ---swap-- -----io---- -system-- ----------cpu----------
@@ -71,7 +71,7 @@ Average:        0     45491   41.94    0.00    0.00   57.09   41.94     -  stres
  201    0            0    258863056       110152      1967500    0    0     0     0 24138 6172 100   0   0   0   0   0
  201    0            0    258864368       110152      1967500    0    0     0     0 24158 6259 100   0   0   0   0   0
 
-[root@hostname-zb9ta ~]# pidstat -w 5
+[root@hostname-zb9ta ~]# pidstat -w 5 #限制：只能看到进程的上下文切换，看不到线程的上下文切换
 # 自愿上下文切换 ： 因为内存或者I/O等资源不足，主动进行上下文切换
 # 非自愿上下文切换 ： 因为时间片已到被系统进行强制调度（当大量进程争抢CPU时，就很高；比如下方的28.32就是用stress -c 200）
 Linux 5.10.0-216.0.0.115.oe2203sp4.aarch64 (hostname-zb9ta.foreman.pxe)         01/03/2025      _aarch64_       (96 CPU)
@@ -122,17 +122,27 @@ total 420
 
 [root@hostname-zb9ta ~]# perf report  # 展示类似于perf top的报告
 ```
+
+> 思考
+>> 1. 用户CPU和Nice CPU过高，应该着重排查进程的性能问题，perf top看看进程的热点函数
+>> 2. 系统CPU过高， 看内核线程和系统调用的性能问题（具体怎么分析？）
+>> 3. ioswait过高就看磁盘IO性能
+>> 4. 软中断和硬中断高，着重排查内核中的中断服务程序
+
+
 #### CPU使用率高，但是top找不到对应的进程————短时进程分析
-1. top 和 pidstat -u 1 不一定能查询到短时的进程
+1. top 和 pidstat -u 1 不一定能查询到短时的进程(也就是程序内部通过exec调用的外面的命令)
 2. 但是perf record -g 可以记录到； 或者使用 execsnoop（arm上好像没有）
 ```shell
 # pstree 查询进程的父进程，以及进程之间的关系（或者是这个进程是怎么被启动的）
 # 数字2 表示有2个进程
 [root@hostname-zb9ta ~]# pstree | grep stress
         |-sshd---sshd---sshd-+-bash---stress---2*[stress]
+
+[root@hostname-zb9ta ~]# pstree -aps 3084 #查3084进程的父进程       
 ```
 
-#### 系统中大量的不可中断进程和僵尸进程
+## 系统中大量的不可中断进程和僵尸进程
 > top命令下的进程状态
 - R （Running / Runnable）
 - D （Disk Sleep） 不可中断状态睡眠，一般表示进程正在和硬件交互，切交互过程不允许被其他进程或中断打断
@@ -145,3 +155,62 @@ total 420
 - T （Stopped/Traced） 暂停（比如发送个一个SIGSTOP信号给进程）或者跟踪状态（gdb调试的时候）：
 - X （Dead） 进程已经消亡，无法在top中查看
 
+### dstat 工具使用
+支持同时查看CPU和IO两种资源的使用情况
+```shell
+# 间隔1秒输出10组数据
+sh-4.4# dstat 1 10
+You did not select any stats, using -cdngy by default.
+----total-usage---- -dsk/total- -net/total- ---paging-- ---system--
+usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 | 316   437 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 | 230   310 
+  0   0  99   0   0|   0     0 |   0     0 |   0     0 | 619   870 
+  0   0  99   0   0|   0     0 |   0     0 |   0     0 |1419  2076 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 |1477  2117 
+  1   0  98   0   0|   0    12k|   0     0 |   0     0 |1550  2223 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 | 461   647 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 |  88    90 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 | 124   144 
+  0   0 100   0   0|   0     0 |   0     0 |   0     0 | 466   647
+
+```
+
+### pidstat -d
+-d 展示IO统计数据
+```shell
+(base) [root@hostname-acpym ~]# pidstat -d -p 158221 1 3 
+Linux 5.10.0-182.0.0.95.oe2203sp3.aarch64 (hostname-acpym.foreman.pxe)  02/23/2025      _aarch64_       (96 CPU)
+
+02:14:52 PM   UID       PID   kB_rd/s   kB_wr/s kB_ccwr/s iodelay  Command
+02:14:53 PM     0    158221      0.00      0.00      0.00      98  stress
+02:14:54 PM     0    158221      0.00      0.00      0.00      99  stress
+02:14:55 PM     0    158221      0.00      0.00      0.00      99  stress
+Average:        0    158221      0.00      0.00      0.00      99  stress
+```
+
+## 软硬中断
+- 软中断和硬中断：
+> Linux将中断处理分为上下两个部分，上半部分直接处理硬件请求（硬中断），特点是快速运行。比如：响应中断，把网卡数据包读取到内存中
+> 下半部分由内核触发（软中断），用于延迟完成上半部分未完成的工作。比如：响应中断，然后解析数据包协议及内容
+
+
+```shell
+# 查询软中断
+sh-4.4# cat /proc/softirqs 
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       CPU6       CPU7       
+          HI:          0          0          0          0          0          0          0          0
+       TIMER:      25623      31501      32778      25004      32521      27053      23874      26552
+      NET_TX:          0          7          4          0          3          5          2          0
+      NET_RX:       5444        314        489        234        380        260        339        497
+       BLOCK:      16142          0          0          0          0          0          0          0
+    IRQ_POLL:          0          0          0          0          0          0          0          0
+     TASKLET:          0          0          0          0         29          0         28          0
+       SCHED:     220614      76424      52147      38439      42269      40233      38846      43356
+     HRTIMER:          0          0          0          0          0          0          0          0
+         RCU:      43131      59358      65311      50818      54544      53077      46624      48508
+
+# 查询硬中断
+sh-4.4#  cat /proc/interrupts
+
+```
