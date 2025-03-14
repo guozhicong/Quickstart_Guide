@@ -1,6 +1,6 @@
 BIOS配置对性能的影响
 
-[BIOS 参数参考 (鲲鹏920处理器)](https://support.huawei.com/enterprise/zh/doc/EDOC1100220443/d256e37c)
+[BIOS 参数参考 (鲲鹏920处理器)](https://support.huawei.com/enterprise/zh/doc/EDOC1100088653/98b06651?idPath=23710424|251364417|9856629|250697162)
 
 ---
 
@@ -129,8 +129,39 @@ BIOSTools -A NUMAEn -V Enabled
 | Add   |      130701.2                              |      158972.1                              |     12883.0                                |      15635.1                               |
 | Triad |      141872.2                              |      140223.7                              |     13162.0                                |      15578.8                               |
 
+## DEMT
 
+### 目的
 
+> [!IMPORTANT]
+> 
+> 选择动态能耗管理技术模式。(默认为disable)
+> 
+>使用快速调整模式时，频率调整速度较快。当CPU负载不低于90%时，CPU立即升到最高频率运行；当CPU负载低于90%时，CPU快速降到最低频率运行。
+使用平滑调整模式时，频率调整速度较慢。当CPU负载不低于90%时，CPU平滑升到最高频率运行；当CPU负载低于90%时，CPU平滑降到最低频率运行。
+> 
+### 作用
+```shell
+# 当DEMT设置为Fast Mode，且当前CPU使用率极低时， perf stat 查询到真实的cpu频率仅为1.599GHz。
+[root@hostname-kvvcy ~]# perf stat --timeout 3000 bash -c "while true; do continue; done"
+ Performance counter stats for 'bash -c while true; do continue; done':
+        179,814.93 msec task-clock                #    1.000 CPUs utilized
+                54      context-switches          #    0.000 K/sec
+                 0      cpu-migrations            #    0.000 K/sec
+                62      page-faults               #    0.000 K/sec
+   287,604,525,772      cycles                    #    1.599 GHz
+   647,245,465,162      instructions              #    2.25  insn per cycle
+```
+
+### 方法
+
+#### 方法一
+1.  在BIOS中，选择“BIOS->Advanced->DEMT”
+2.  设置“DEMT”选项为“Disable”，按F10保存BIOS配置。
+#### 方法二
+```shell
+
+```
 ---
 
 ## 模版
