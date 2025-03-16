@@ -135,7 +135,9 @@ BIOSTools -A NUMAEn -V Enabled
 
 > [!IMPORTANT]
 > 
-> 选择动态能耗管理技术模式。(默认为disable)
+> 选择动态能耗管理技术模式。(默认为Disabled， 可选模式 ["Disabled", "Fast Mode", "Smooth Mode"])
+> 
+> 优先级比Power Policy高
 > 
 >使用快速调整模式时，频率调整速度较快。当CPU负载不低于90%时，CPU立即升到最高频率运行；当CPU负载低于90%时，CPU快速降到最低频率运行。
 使用平滑调整模式时，频率调整速度较慢。当CPU负载不低于90%时，CPU平滑升到最高频率运行；当CPU负载低于90%时，CPU平滑降到最低频率运行。
@@ -160,7 +162,8 @@ BIOSTools -A NUMAEn -V Enabled
 2.  设置“DEMT”选项为“Disable”，按F10保存BIOS配置。
 #### 方法二
 ```shell
-
+BIOSTools -D getbiosdetails -A DemtMode
+BIOSTools -A DemtMode -V Disabled
 ```
 ---
 
